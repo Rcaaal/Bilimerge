@@ -110,6 +110,8 @@ class _VideoListScreenState extends State<VideoListScreen> {
   /// 打开 B 站缓存目录
   /// 策略：Shizuku → Shell (root) → MT 管理器引导
   Future<void> _openBiliCache() async {
+    // 先清空旧列表，确保重新扫描不会读到已删除的残留缓存
+    controller.clearVideos();
     _snack("正在准备读取B站缓存...");
     final biliPath = "/storage/emulated/0/Android/data/tv.danmaku.bili/download";
 
@@ -610,7 +612,7 @@ class _VideoListScreenState extends State<VideoListScreen> {
       final okCount = results.where((r) => r.success).length;
       controller.videos.removeWhere((v) => list.contains(v));
       setState(() {});
-      unawaited(controller.saveCache());
+      await controller.saveCache();
       if (okCount == list.length) {
         _snack("已删除 $okCount/${list.length} 个文件夹");
       } else {
@@ -635,7 +637,7 @@ class _VideoListScreenState extends State<VideoListScreen> {
         controller.videos.removeWhere(
             (v) => v.avid == video.avid && v.title == video.title);
       });
-      unawaited(controller.saveCache());
+      await controller.saveCache();
       _snack("已删除: ${video.title}");
     } else {
       _snack("删除失败: ${result.errorMessage ?? "未知错误"}");
@@ -655,7 +657,7 @@ class _VideoListScreenState extends State<VideoListScreen> {
     controller.videos.removeWhere((v) => list.contains(v));
     controller.exitSelectMode();
     setState(() {});
-    unawaited(controller.saveCache());
+    await controller.saveCache();
     if (failCount > 0) {
       _snack("删除: 成功 $okCount/${list.length}，$failCount 个失败（详见诊断日志）");
     } else {

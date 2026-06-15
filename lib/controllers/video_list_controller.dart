@@ -226,22 +226,43 @@ class VideoListController extends ChangeNotifier {
   // 数据加载
   // ────────────────────────────────────────────────────────
 
-  /// 从缓存恢复视频列表
+  /// 从缓存恢复视频列表（同时过滤已不存在的文件）
   Future<void> loadCachedList() async {
     final cache = await VideoCacheService.loadVideoList();
     if (cache != null) {
       final videos = cache["videos"] as List<BiliVideo>;
       if (videos.isNotEmpty) {
-        _videos = videos;
+        // 过滤：已删除（文件夹不存在）的视频不再恢复
+        // 临时目录被清理时也自然过滤——因为 scanDirectory/buildFromShizukuScan
+        // 会重新生成完整列表，这里只做兜底校验。
+        final valid = <BiliVideo>[];
+        int filteredCount = 0;
+        for (final v in videos) {
+          if (Directory(v.folderPath).existsSync()) {
+            valid.add(v);
+          } else {
+            filteredCount++;
+          }
+        }
+        _videos = valid;
         _rootPath = cache["rootPath"] as String?;
         _shizukuScanMode = cache["isScanMode"] as bool? ?? false;
         _diagnosticInfo = cache["diagnosticInfo"] as String?;
         _loading = false;
+        // 如果有被过滤掉的视频 → 缓存已过期，重新保存一次清理后的列表
+        if (filteredCount > 0 && valid.isNotEmpty) {
+          unawaited(VideoCacheService.saveVideoList(
+            videos: valid,
+            rootPath: _rootPath!,
+            isScanMode: _shizukuScanMode,
+            diagnosticInfo: "${_diagnosticInfo ?? ""}\n【缓存修复】过滤 ${filteredCount} 个已不存在的视频",
+          ));
+        }
         // 触发封面下载
         triggerCoverDownload();
         // 记录诊断日志
         unawaited(DiagnosticLogService.addEntry(
-            "缓存恢复: ${videos.length} 视频\n${_diagnosticInfo ?? ""}"));
+            "缓存恢复: ${_videos.length} 视频${filteredCount > 0 ? " (过滤 ${filteredCount} 个不存在)" : ""}\n${_diagnosticInfo ?? ""}"));
       }
     }
     // 异步刷新已导出状态
@@ -554,7 +575,7 @@ class VideoListController extends ChangeNotifier {
       _videos.removeWhere(
           (v) => v.avid == video.avid && v.title == video.title);
       notifyListeners();
-      unawaited(saveCache());
+      await saveCache();
     }
     return result;
   }
@@ -573,7 +594,7 @@ class VideoListController extends ChangeNotifier {
     _videos.removeWhere((v) => succeeded.contains(v));
     exitSelectMode();
     notifyListeners();
-    unawaited(saveCache());
+    await saveCache();
     return results;
   }
 
@@ -586,7 +607,7 @@ class VideoListController extends ChangeNotifier {
     }
     _videos.removeWhere((v) => succeeded.contains(v));
     notifyListeners();
-    unawaited(saveCache());
+    await saveCache();
     return results;
   }
 
@@ -648,14 +669,23 @@ class VideoListController extends ChangeNotifier {
   }
 
   /// 保存当前视频列表到缓存（删除后调用，避免重启后恢复已删文件）
+  ///
+  /// 添加 try-catch 防止静默失败，删除操作应确保缓存同步写入后才返回。
   Future<void> saveCache() async {
     if (_rootPath == null) return;
-    await VideoCacheService.saveVideoList(
-      videos: List.from(_videos),
-      rootPath: _rootPath!,
-      isScanMode: _shizukuScanMode,
-      diagnosticInfo: _diagnosticInfo ?? "",
-    );
+    try {
+      await VideoCacheService.saveVideoList(
+        videos: List.from(_videos),
+        rootPath: _rootPath!,
+        isScanMode: _shizukuScanMode,
+        diagnosticInfo: _diagnosticInfo ?? "",
+      );
+    } catch (e) {
+      unawaited(DiagnosticLogService.addEntry(
+          "[缓存写入失败] saveCache: $e\n"
+          "  rootPath: $_rootPath\n"
+          "  视频数: ${_videos.length}"));
+    }
   }
 
   /// 清除临时文件
