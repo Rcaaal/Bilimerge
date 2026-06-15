@@ -1,0 +1,26 @@
+name: bilimerge
+description: Bilibili cache audio video merger
+publish_to: "none"
+version: 2.0.0+1
+
+environment:
+  sdk: ^3.2.0
+
+dependencies:
+  flutter:
+    sdk: flutter
+  cupertino_icons: ^1.0.6
+  path_provider: ^2.1.1
+  file_picker: ^10.0.0
+  intl: ^0.20.0
+  permission_handler: ^12.0.0
+  open_file: ^4.0.0
+  ffmpeg_kit_flutter_min_gpl: ^6.0.3
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^6.0.0
+
+flutter:
+  uses-material-design: true
