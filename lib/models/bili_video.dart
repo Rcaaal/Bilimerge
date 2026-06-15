@@ -29,12 +29,18 @@ class BiliVideo {
   /// 由 fromShizukuScan 或 fromMediaFolder（全量复制）填充，
   /// 用于 DeleteService 定位真正的删除目标
   final String? originalSourceFolder;
+  /// 分P名称（来自 entry.json 的 page_data.part），非分P视频为空
+  final String partName;
+  /// 分P页码（来自 entry.json 的 page_data.page），非分P视频为 0
+  final int pageNumber;
   String? mergeOutputPath;
 
   bool get isMerged => mergeOutputPath != null;
   int get totalBytes => videoSize + audioSize;
   /// 是否仅扫描模式（m4s 文件未复制到本地）
   bool get isScanOnly => originalMediaPath != null;
+  /// 显示用标题：分P视频追加分P名
+  String get displayTitle => partName.isNotEmpty ? "$title - P$pageNumber: $partName" : title;
 
   BiliVideo({
     required this.cid,
@@ -60,6 +66,8 @@ class BiliVideo {
     this.mergeOutputPath,
     this.originalMediaPath,
     this.originalSourceFolder,
+    this.partName = "",
+    this.pageNumber = 0,
   });
 
   /// 从包含 video.m4s+audio.m4s 的目录解析视频信息（容错版）
@@ -74,8 +82,9 @@ class BiliVideo {
   }) {
     String? title, ownerName, bvid, avidStr, qualityLabel;
     int durationMs = 0, danmakuCount = 0, downloadTimestamp = 0;
-    int vW = 0, vH = 0;
+    int vW = 0, vH = 0, pageCid = 0, pageNum = 0;
     double fps = 0;
+    String partName = "";
 
     // 读取 entry.json 获取元数据（遍历祖先链直到找到为止）
     String? resolvedEntryPath = entryJsonPath;
@@ -121,6 +130,16 @@ class BiliVideo {
           durationMs = _safeInt(json["total_time_milli"]) ?? 0;
           danmakuCount = _safeInt(json["danmaku_count"]) ?? 0;
           downloadTimestamp = _safeInt(json["time_create_stamp"]) ?? 0;
+
+          // ★★★ 读取 page_data（分P信息）★★★
+          if (json["page_data"] is Map) {
+            final pd = json["page_data"] as Map<String, dynamic>;
+            final rawCid = _safeInt(pd["cid"]) ?? 0;
+            final rawPage = _safeInt(pd["page"]) ?? 0;
+            if (rawCid > 0) pageCid = rawCid;
+            if (rawPage > 0) pageNum = rawPage;
+            partName = _safeString(pd["part"]);
+          }
         }
       } catch (_) {}
     }
@@ -156,7 +175,7 @@ class BiliVideo {
       } catch (_) {}
     }
 
-    final cid = "c_${avidFolderName}_$qualityName";
+    final cid = pageCid > 0 ? "c_$pageCid" : "c_${avidFolderName}_$qualityName";
 
     return BiliVideo(
       cid: cid,
@@ -180,6 +199,8 @@ class BiliVideo {
       danmakuCount: danmakuCount,
       downloadTimestamp: downloadTimestamp,
       originalSourceFolder: originalSourceDir,
+      partName: partName,
+      pageNumber: pageNum,
     );
   }
 
@@ -196,8 +217,9 @@ class BiliVideo {
   }) {
     String? title, ownerName, bvid, avidStr, qualityLabel;
     int durationMs = 0, danmakuCount = 0, downloadTimestamp = 0;
-    int vW = 0, vH = 0;
+    int vW = 0, vH = 0, pageCid = 0, pageNum = 0;
     double fps = 0;
+    String partName = "";
 
     // 解析 entry.json 文本（兼容 BOM）
     try {
@@ -214,6 +236,16 @@ class BiliVideo {
       durationMs = _safeInt(json["total_time_milli"]) ?? 0;
       danmakuCount = _safeInt(json["danmaku_count"]) ?? 0;
       downloadTimestamp = _safeInt(json["time_create_stamp"]) ?? 0;
+
+      // ★★★ 读取 page_data（分P信息）★★★
+      if (json["page_data"] is Map) {
+        final pd = json["page_data"] as Map<String, dynamic>;
+        final rawCid = _safeInt(pd["cid"]) ?? 0;
+        final rawPage = _safeInt(pd["page"]) ?? 0;
+        if (rawCid > 0) pageCid = rawCid;
+        if (rawPage > 0) pageNum = rawPage;
+        partName = _safeString(pd["part"]);
+      }
     } catch (_) {}
 
     // 从目录名推断质量标签
@@ -247,7 +279,7 @@ class BiliVideo {
       } catch (_) {}
     }
 
-    final cid = "c_${avidFolderName}_$qualityName";
+    final cid = pageCid > 0 ? "c_$pageCid" : "c_${avidFolderName}_$qualityName";
 
     return BiliVideo(
       cid: cid,
@@ -271,6 +303,8 @@ class BiliVideo {
       danmakuCount: danmakuCount,
       downloadTimestamp: downloadTimestamp,
       originalMediaPath: mediaPath,
+      partName: partName,
+      pageNumber: pageNum,
     );
   }
 
@@ -356,6 +390,8 @@ class BiliVideo {
       danmakuCount: _safeInt(json["danmaku_count"]) ?? 0,
       downloadTimestamp: _safeInt(json["time_create_stamp"]) ?? 0,
       mergeOutputPath: mergedPath,
+      partName: _safeString(pageData["part"]),
+      pageNumber: _safeInt(pageData["page"]) ?? 0,
     );
   }
 
@@ -414,16 +450,18 @@ class BiliVideo {
     final cleanOwner = ownerName.replaceAll(RegExp(r'[<>:"/\\|?*]'), "");
     const int maxBytes = 240;
 
+    final suffix = pageNumber > 0 ? "-P$pageNumber" : "";
+
     // 从完整 title 开始，逐步截断直到 UTF-8 字节不超限
     for (int len = cleanTitle.length; len >= 0; len--) {
       final truncated = cleanTitle.substring(0, len);
-      final name = "#$cleanOwner-$truncated-${_fmt(totalBytes)}.mp4";
+      final name = "#$cleanOwner-$truncated$suffix-${_fmt(totalBytes)}.mp4";
       if (utf8.encode(name).length <= maxBytes) {
         return name;
       }
     }
     // 极端 fallback：连空 title 都超限（极少见）
-    return "#${cleanOwner.substring(0, cleanOwner.length.clamp(1, 8))}-${_fmt(totalBytes)}.mp4";
+    return "#${cleanOwner.substring(0, cleanOwner.length.clamp(1, 8))}$suffix-${_fmt(totalBytes)}.mp4";
   }
 
   DateTime? get downloadDate =>

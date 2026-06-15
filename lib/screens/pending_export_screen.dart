@@ -116,7 +116,7 @@ class _PendingExportScreenState extends State<PendingExportScreen> {
                         child: Container(color: Colors.indigo.withOpacity(0.08), child: Icon(Icons.videocam, color: Colors.indigo[300], size: 24)),
                       ),
                     ),
-                    title: Text(v.title, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 14)),
+                    title: Text(v.displayTitle, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 14)),
                     subtitle: Text(
                       "${v.ownerName} · ${v.sizeFormatted} · ${v.durationFormatted}",
                       maxLines: 1,

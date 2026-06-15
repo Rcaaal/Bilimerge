@@ -66,6 +66,7 @@ class ExportService {
         title: video.title,
         ownerName: video.ownerName,
         avid: video.avid,
+        cid: video.cid,
       );
       return ExportResult(true, outputPath: outputPath, record: record, skipped: true);
     }
@@ -161,6 +162,7 @@ class ExportService {
       title: video.title,
       ownerName: video.ownerName,
       avid: video.avid,
+      cid: video.cid,
     );
     _history.insert(0, record);
     _exportedKeys.add(_exportKey(video));
@@ -241,7 +243,7 @@ class ExportService {
     return keys;
   }
 
-  static String _exportKey(BiliVideo v) => "${v.avid}::${v.title}";
+  static String _exportKey(BiliVideo v) => "${v.avid}::${v.cid}";
 
   static Future<String?> _getDefaultExportPath() async {
     try {
@@ -300,6 +302,7 @@ class ExportService {
         ownerName: record.ownerName,
         avid: record.avid,
         originalDeleted: true,
+        cid: record.cid,
       );
       await _saveHistory();
     }
@@ -320,7 +323,8 @@ class ExportService {
         _history = list.map((e) => ExportRecord.fromJson(e as Map<String, dynamic>)).toList();
         // 从历史记录预填充 _exportedKeys（快速判断已导出）
         for (final r in _history) {
-          _exportedKeys.add("${r.avid}::${r.title}");
+          final key = r.cid.isNotEmpty ? "${r.avid}::${r.cid}" : "${r.avid}::${r.title}";
+          _exportedKeys.add(key);
         }
       }
     } catch (_) { _history = []; }

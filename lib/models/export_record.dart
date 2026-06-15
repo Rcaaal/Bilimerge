@@ -9,6 +9,7 @@ class ExportRecord {
   final String ownerName;
   final String avid;
   final bool originalDeleted;      // 是否已删
+  final String cid;                // 分P标识（用于去重键）
 
   ExportRecord({
     required this.fileName,
@@ -20,6 +21,7 @@ class ExportRecord {
     required this.ownerName,
     required this.avid,
     this.originalDeleted = false,
+    this.cid = "",
   });
 
   DateTime get exportDate => DateTime.fromMillisecondsSinceEpoch(exportTimestamp * 1000);
@@ -45,6 +47,7 @@ class ExportRecord {
         "ownerName": ownerName,
         "avid": avid,
         "originalDeleted": originalDeleted,
+        "cid": cid,
       };
 
   factory ExportRecord.fromJson(Map<String, dynamic> json) => ExportRecord(
@@ -57,5 +60,6 @@ class ExportRecord {
         ownerName: json["ownerName"] ?? "",
         avid: json["avid"] ?? "",
         originalDeleted: json["originalDeleted"] ?? false,
+        cid: json["cid"] ?? "",
       );
 }

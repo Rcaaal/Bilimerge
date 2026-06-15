@@ -385,7 +385,10 @@ class _VideoListScreenState extends State<VideoListScreen> {
     }
   }
 
-  Future<void> _export(BiliVideo v) => _exportWithConfirm([v]);
+  Future<void> _export(BiliVideo v) async {
+    final siblings = controller.getSiblingVideos(v);
+    await _exportWithConfirm(siblings);
+  }
   Future<void> _exportBatch(List<BiliVideo> list) => _exportWithConfirm(list);
 
   Future<void> _exportWithConfirm(List<BiliVideo> list, {String? forcedDir}) async {
@@ -625,41 +628,62 @@ class _VideoListScreenState extends State<VideoListScreen> {
   }
 
   Future<void> _deleteSingle(BiliVideo video) async {
+    final siblings = controller.getSiblingVideos(video);
     final info = await DeleteService.getFolderInfo(video);
     if (!mounted) return;
-    final ok = await dialogs.showDeleteDetailDialog(context, video, info);
+    final ok = await dialogs.showDeleteDetailDialog(
+      context, video, info,
+      siblingVideos: siblings.length > 1 ? siblings : null,
+    );
     if (!ok || !mounted) return;
 
-    final result = await DeleteService.markForDeletion(video);
+    // 分P：删除所有集
+    final toDelete = siblings.length > 1 ? siblings : [video];
+    int successCount = 0;
+    for (final v in toDelete) {
+      final result = await DeleteService.markForDeletion(v);
+      if (result.success) successCount++;
+    }
     if (!mounted) return;
-    if (result.success) {
+    if (successCount > 0) {
+      final avids = toDelete.map((v) => v.avid).toSet();
+      final titles = toDelete.map((v) => v.title).toSet();
       setState(() {
         controller.videos.removeWhere(
-            (v) => v.avid == video.avid && v.title == video.title);
+            (v) => avids.contains(v.avid) && titles.contains(v.title));
       });
       await controller.saveCache();
-      _snack("已删除: ${video.title}");
+      _snack("已删除: ${video.title}${siblings.length > 1 ? " (共 ${toDelete.length} 集)" : ""}");
     } else {
-      _snack("删除失败: ${result.errorMessage ?? "未知错误"}");
+      _snack("删除失败: 无法删除文件夹");
     }
   }
 
   Future<void> _deleteSelected() async {
-    final list = controller.selectedVideos;
-    if (list.isEmpty) return;
-    if (!await dialogs.showBatchDeleteConfirmDialog(context, list)) return;
+    // 展开选中列表：包含了某个分P时自动包含所有分P
+    final selected = controller.selectedVideos;
+    if (selected.isEmpty) return;
+    final avids = <String>{};
+    final List<BiliVideo> expanded = [];
+    for (final v in selected) {
+      if (!avids.contains(v.avid)) {
+        avids.add(v.avid);
+        expanded.addAll(controller.getSiblingVideos(v));
+      }
+    }
+    if (!await dialogs.showBatchDeleteConfirmDialog(context, expanded)) return;
 
-    final results = await DeleteService.markBatchForDeletion(list);
+    final results = await DeleteService.markBatchForDeletion(expanded);
     if (!mounted) return;
     final okCount = results.where((r) => r.success).length;
     final failCount = results.where((r) => !r.success).length;
 
-    controller.videos.removeWhere((v) => list.contains(v));
+    controller.videos.removeWhere((v) => expanded.contains(v));
     controller.exitSelectMode();
     setState(() {});
     await controller.saveCache();
     if (failCount > 0) {
-      _snack("删除: 成功 $okCount/${list.length}，$failCount 个失败（详见诊断日志）");
+      _snack("删除: 成功 $okCount/${expanded.length}，$failCount 个失败（详见诊断日志）");
     } else {
       _snack("已删除 $okCount 个文件夹");
     }
@@ -903,6 +927,7 @@ class _VideoListScreenState extends State<VideoListScreen> {
           onExport: () => _export(v),
           onTogglePending: () => controller.togglePendingExport(v),
           pending: controller.isPendingExport(v),
+          isMultiPart: controller.getSiblingVideos(v).length > 1,
           onDelete: () => _deleteSingle(v),
         );
       },

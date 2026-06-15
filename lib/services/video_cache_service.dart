@@ -50,6 +50,8 @@ class VideoCacheService {
       'downloadTimestamp': v.downloadTimestamp,
       'originalMediaPath': v.originalMediaPath,
       'originalSourceFolder': v.originalSourceFolder,
+      'partName': v.partName,
+      'pageNumber': v.pageNumber,
     }).toList();
 
     final data = {
@@ -94,6 +96,8 @@ class VideoCacheService {
           downloadTimestamp: m['downloadTimestamp'] ?? 0,
           originalMediaPath: m['originalMediaPath'],
           originalSourceFolder: m['originalSourceFolder'],
+          partName: m['partName'] ?? '',
+          pageNumber: m['pageNumber'] ?? 0,
         );
       }).toList();
       return {

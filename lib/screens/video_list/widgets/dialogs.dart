@@ -60,7 +60,7 @@ Future<bool> showDeleteConfirmDialog(
         builder: (ctx) => AlertDialog(
           title: Text("确认删除 ${list.length} 个文件夹"),
           content: Text(
-              "将永久删除原始缓存文件夹:\n${list.map((v) => "  ${v.title}").join("\n")}\n\n不可撤销!"),
+              "将永久删除原始缓存文件夹:\n${list.map((v) => "  ${v.displayTitle}").join("\n")}\n\n不可撤销!"),
           actions: [
             TextButton(
                 onPressed: () => Navigator.pop(ctx, false),
@@ -418,12 +418,17 @@ Future<String?> showMTManagerGuideDialog(
 ///   - APK 警告（如路径包含 APK）
 ///   - 输入框：必须输入 "y" 后确认按钮才可用
 ///
+/// [siblingVideos] 如果提供且非空，表示这是分P视频组删除，
+/// 对话框会显示所有分P的名称。
+///
 /// 返回 true = 确认删除
 Future<bool> showDeleteDetailDialog(
   BuildContext context,
   BiliVideo video,
-  FolderInfo info,
-) async {
+  FolderInfo info, {
+  List<BiliVideo>? siblingVideos,
+}) async {
+  final isMultiPart = siblingVideos != null && siblingVideos.length > 1;
   return await showDialog<bool>(
         context: context,
         builder: (ctx) => AlertDialog(
@@ -446,6 +451,49 @@ Future<bool> showDeleteDetailDialog(
                     // 视频信息
                     _detailRow("标题", video.title),
                     _detailRow("UP主", video.ownerName),
+                    // 分P信息
+                    if (isMultiPart) ...[
+                      const SizedBox(height: 6),
+                      Container(
+                        width: double.infinity,
+                        padding: const EdgeInsets.all(8),
+                        decoration: BoxDecoration(
+                          color: Colors.orange.withValues(alpha: 0.08),
+                          borderRadius: BorderRadius.circular(6),
+                          border: Border.all(color: Colors.orange.withValues(alpha: 0.2)),
+                        ),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Row(
+                              children: [
+                                Icon(Icons.content_copy, size: 14, color: Colors.orange[700]),
+                                const SizedBox(width: 4),
+                                Text(
+                                  "分P视频组 (${siblingVideos!.length} 集)",
+                                  style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.orange[800]),
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 4),
+                            ...siblingVideos.map((s) => Padding(
+                              padding: const EdgeInsets.only(top: 2),
+                              child: Text(
+                                "  P${s.pageNumber}: ${s.partName}",
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: TextStyle(fontSize: 11, color: Colors.orange[900], fontFamily: 'monospace'),
+                              ),
+                            )),
+                            const SizedBox(height: 4),
+                            Text(
+                              "删除将清除全部 ${siblingVideos.length} 集",
+                              style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: Colors.orange[700]),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
                     const SizedBox(height: 8),
                     // 路径
                     const Text("文件夹路径：",
@@ -629,7 +677,7 @@ Future<bool> showBatchDeleteConfirmDialog(
                                 const SizedBox(width: 6),
                                 Expanded(
                                   child: Text(
-                                    v.title,
+                                    v.displayTitle,
                                     maxLines: 1,
                                     overflow: TextOverflow.ellipsis,
                                     style: const TextStyle(fontSize: 13),

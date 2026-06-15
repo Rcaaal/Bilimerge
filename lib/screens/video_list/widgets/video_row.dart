@@ -16,6 +16,7 @@ class VideoRow extends StatelessWidget {
   final bool pending;
   final VoidCallback? onTogglePending;
   final VoidCallback? onDelete;
+  final bool isMultiPart;
 
   const VideoRow({
     super.key,
@@ -30,6 +31,7 @@ class VideoRow extends StatelessWidget {
     this.pending = false,
     this.onTogglePending,
     this.onDelete,
+    this.isMultiPart = false,
   });
 
   Widget _buildCover(BuildContext context) {
@@ -102,11 +104,32 @@ class VideoRow extends StatelessWidget {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(
-                      video.title,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(fontWeight: FontWeight.w500),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: Text(
+                            video.displayTitle,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(fontWeight: FontWeight.w500),
+                          ),
+                        ),
+                        if (isMultiPart)
+                          Padding(
+                            padding: const EdgeInsets.only(left: 4),
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
+                              decoration: BoxDecoration(
+                                color: Colors.orange,
+                                borderRadius: BorderRadius.circular(4),
+                              ),
+                              child: Text(
+                                "分P",
+                                style: TextStyle(fontSize: 10, color: Colors.white, fontWeight: FontWeight.w600),
+                              ),
+                            ),
+                          ),
+                      ],
                     ),
                     const SizedBox(height: 3),
                     Text(

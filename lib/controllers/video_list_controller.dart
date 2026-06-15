@@ -200,7 +200,7 @@ class VideoListController extends ChangeNotifier {
   List<BiliVideo> get pendingExportVideos =>
       _videos.where((v) => _pendingExportKeys.contains(exportKey(v))).toList();
 
-  String exportKey(BiliVideo v) => "${v.avid}::${v.title}";
+  String exportKey(BiliVideo v) => "${v.avid}::${v.cid}";
 
   // ────────────────────────────────────────────────────────
   // 生命周期
@@ -443,12 +443,31 @@ class VideoListController extends ChangeNotifier {
   // 待导出队列
   // ────────────────────────────────────────────────────────
 
+  /// 获取同一 avid 的所有视频（分P视频组）
+  List<BiliVideo> getSiblingVideos(BiliVideo video) {
+    return _videos.where((v) => v.avid == video.avid).toList();
+  }
+
   void togglePendingExport(BiliVideo v) {
-    final key = exportKey(v);
-    if (_pendingExportKeys.contains(key)) {
-      _pendingExportKeys.remove(key);
+    final siblings = getSiblingVideos(v);
+    if (siblings.length > 1) {
+      // 分P视频：任一在队列中则全部移出，否则全部加入
+      final anyPending = siblings.any((s) => _pendingExportKeys.contains(exportKey(s)));
+      for (final s in siblings) {
+        if (anyPending) {
+          _pendingExportKeys.remove(exportKey(s));
+        } else {
+          _pendingExportKeys.add(exportKey(s));
+        }
+      }
     } else {
-      _pendingExportKeys.add(key);
+      // 单视频：正常切换
+      final key = exportKey(v);
+      if (_pendingExportKeys.contains(key)) {
+        _pendingExportKeys.remove(key);
+      } else {
+        _pendingExportKeys.add(key);
+      }
     }
     notifyListeners();
   }
